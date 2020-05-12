@@ -1,5 +1,8 @@
 /***** button.h *****/
 /*
+ * Written for ECS7012U Music and 
+ * Audio Programming, for the Bela platform.
+ *
  * Alex Richardson 2020
  */
 

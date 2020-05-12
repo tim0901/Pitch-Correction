@@ -1,5 +1,8 @@
 /***** circularBuffer.h *****/
 /*
+ * Written for ECS7012U Music and 
+ * Audio Programming, for the Bela platform.
+ *
  * Alex Richardson 2020
  */
  
@@ -7,6 +10,7 @@
 #define CIRCULARBUFFER_H
 
 // A circular buffer
+// Handles read and write pointers and their wrapping, thereby cleaning up render()
 
 class circularBuffer{
 public:
@@ -29,7 +33,7 @@ public:
 		while(element < 0){
 			element += bufferSize;
 		}
-		element = element%bufferSize;
+		element = element % bufferSize;
 		
 		return buffer[element];
 	}
@@ -50,7 +54,7 @@ public:
 	inline float returnAndEmptyElement(int element){
 		
 		float temp = this->returnElement(element);
-		buffer[element] = 0.0;
+		buffer[element] = 0.0; // Empty element
 		return temp;
 	}
 	

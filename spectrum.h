@@ -1,8 +1,11 @@
 /***** spectrum.h *****/
 /*
+ * Written for ECS7012U Music and 
+ * Audio Programming, for the Bela platform.
+ *
  * Alex Richardson 2020
  */
-
+ 
 #ifndef SPECTRUM_H
 #define SPECTRUM_H
 

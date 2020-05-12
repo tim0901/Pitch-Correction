@@ -1,5 +1,5 @@
 /*
- * assignment3
+ * Assignment 3: Pitch Detection
  * ECS7012 Music and Audio Programming
  *
  * This code runs on the Bela embedded audio platform (bela.io).
@@ -19,6 +19,7 @@
 #include "fftContainer.h"
 #include "spectrum.h"
 #include "button.h"
+#include "hps.h"
 
 button *gSpectrumButton; // The button used to export a spectrum. 
 
@@ -45,6 +46,9 @@ AuxiliaryTask gFFTTask;
 // FFT containers, defined in fftContainer.h
 FFTContainer** gFFTs;
 
+// Harmonic product spectrums for finding fundamental frequency
+HPS** gHPSs;
+
 // Predeclaration
 void processAudio(void* arg);
 
@@ -68,12 +72,16 @@ bool setup(BelaContext *context, void *userData)
 	// We need one FFT per audio channel
 	gFFTs = (FFTContainer**)malloc(context->audioInChannels * sizeof(FFTContainer*));
 	
+	// Harmonic product spectra for finding the fundamental frequency (pitch) of the incoming signal, one per channel
+	gHPSs = (HPS**)malloc(context->audioInChannels * sizeof(HPS*));
+	
 	// Allocate memory per audio channel
 	for(int channel = 0; channel < context->audioInChannels; channel++){
 		gInputBuffers[channel] = new circularBuffer(BUFFER_SIZE);
 		gOutputBuffers[channel] = new circularBuffer(BUFFER_SIZE);
 		gOutputBuffers[channel]->setWritePointer(gHopSize);
 		gFFTs[channel] = new FFTContainer(gWindowSize, context->audioSampleRate);
+		gHPSs[channel] = new HPS(gWindowSize, context->audioSampleRate);
 	}
 	
 	// Prepopulate Hanning window array for efficiency
@@ -113,10 +121,23 @@ void processAudio(void *arg){
 		
 		// ---- Frequency domain processing ---- //
 		
-		// Output a .txt frequency spectrum when the button is pressed (low). Will overwrite previous
+		// Output a .txt frequency spectrum when the button is pressed (low) 
+		// Will overwrite files with the same name
 		// Can cause problems to the audio when used
 		if(!gSpectrumButton->returnState()){
 			generateFrequencySpectrum(gFFTs[0], "spectrum.txt");
+		}
+		
+		// Use harmonic product spectrum to find the fundamental frequency of the incoming sound
+		gHPSs[channel]->importSpectrum(gFFTs[channel]->frequencyDomain);
+		gHPSs[channel]->calculate();
+		float fundamentalFrequency = gHPSs[channel]->estimateFundamentalFrequency();
+		
+		// Output a .txt file conatining the HPS when the button is pressed (low)
+		// Will overwrite files with the same name
+		if(!gSpectrumButton->returnState()){
+			gHPSs[0]->exportHPS("HPS.txt");
+			rt_printf("%f\n", fundamentalFrequency);
 		}
 		
 		// Calculate inverse FFT to bring the processed audio back to the time domain
@@ -183,10 +204,12 @@ void render(BelaContext *context, void *userData)
 void cleanup(BelaContext *context, void *userData)
 {
 	for(int channel = 0; channel < context->audioInChannels; channel++){
+		delete gHPSs[channel];
 		delete gFFTs[channel];
 		delete gInputBuffers[channel];
 		delete gOutputBuffers[channel];
 	}
+	free(gHPSs);
 	free(gFFTs);
 	free(gInputBuffers);
 	free(gOutputBuffers);
