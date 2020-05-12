@@ -1,5 +1,8 @@
 /***** circularBuffer.h *****/
-
+/*
+ * Alex Richardson 2020
+ */
+ 
 #ifndef CIRCULARBUFFER_H
 #define CIRCULARBUFFER_H
 
@@ -9,7 +12,7 @@
 
 class circularBuffer{
 public:
-	//circularBuffer(){} // Default constructor
+	circularBuffer(){} // Default constructor
 	~circularBuffer(){ // Destructor
 		rt_printf("Circular Buffer destructor called.\n");
 		if(buffer){
@@ -21,31 +24,46 @@ public:
 	circularBuffer(int bufSize):bufferSize(bufSize){ // Constructor
 		buffer = (float*)malloc(bufferSize * sizeof(float)); // Initialize array
 		bufferWritePointer = 0; 
-		bufferReadPointer = 0;
 	}
 	
-	// Return the oldest n values inserted into the buffer using the provided array.
-	inline void returnValues(int numberOfValues, float** returnArray){
-		
-		/*
-		if(sizeof(returnArray) / sizeof(float) != numberOfValues){ // Check the return array is properly sized
-			rt_printf("Wrong array size\n");
-			return;
-		}*/
-		
-		for(int i = 0; i < numberOfValues; i++){
-			(*returnArray)[i] = buffer[bufferReadPointer]; // Retrieve corresponding entry in the buffer and add to the array, ensuring the oldest entries are the lower elements. 
-			buffer[bufferReadPointer] = 0; // Empty entry in buffer
-			
-			bufferReadPointer++; // Iterate and wrap bufferReadPointer
-			if(bufferReadPointer >= bufferSize){
-				bufferReadPointer = 0;
-			}
+	// Returns the desired element from the array.
+	inline float returnElement(int element){
+		if(element > bufferSize){
+			element = (element + bufferSize)%bufferSize;
 		}
+		return buffer[element];
+	}
+	
+	// Returns the desired element from the array and empties the buffer element.
+	inline float returnAndEmptyElement(int element){
+		if(element > bufferSize){
+			element = (element + bufferSize)%bufferSize;
+		}
+		float temp = buffer[element];
+		buffer[element] = 0.0;
+		return temp;
+	}
+	
+	// Manually change the write pointer - used for offsetting in setup. 
+	inline void setWritePointer(int element){
+		bufferWritePointer = element;
+	}
+	
+	// Returns the write pointer
+	inline int returnWritePointer(){
+		return bufferWritePointer;
 	}
 	
 	// Insert a sample into the buffer
 	inline void insert(float entry){
+		buffer[(bufferWritePointer)] = entry;
+		bufferWritePointer++;
+		if(bufferWritePointer >= bufferSize){
+			bufferWritePointer = 0;
+		}
+	}
+	
+	inline void insertAndAdd(float entry){
 		buffer[(bufferWritePointer)] += entry;
 		bufferWritePointer++;
 		if(bufferWritePointer >= bufferSize){
@@ -56,7 +74,6 @@ public:
 private:
 	int bufferSize;
 	int bufferWritePointer;
-	int bufferReadPointer;
 	float* buffer; 
 };
 

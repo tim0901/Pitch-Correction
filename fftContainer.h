@@ -1,5 +1,8 @@
 /***** fftContainer.h *****/
-
+/*
+ * Alex Richardson 2020
+ */
+ 
 #ifndef FFTCONTAINER_H
 #define FFTCONTAINER_H
 

@@ -1,4 +1,7 @@
 /***** spectrum.h *****/
+/*
+ * Alex Richardson 2020
+ */
 
 #ifndef SPECTRUM_H
 #define SPECTRUM_H
@@ -8,6 +11,8 @@
 void generateFrequencySpectrum(FFTContainer* fft, std::string fileName){
 	
 	// Writes the amplitude spectrum to a text file.
+	
+	rt_printf("Saving spectrum.\n");
 	
 	// Stream for writing to file
 	std::ofstream ofs;
@@ -25,6 +30,7 @@ void generateFrequencySpectrum(FFTContainer* fft, std::string fileName){
 	// Close stream
 	ofs.close();
 	
+	rt_printf("Save complete.\n");
 }
 
 #endif //SPECTRUM_H
