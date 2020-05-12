@@ -28,7 +28,6 @@ circularBuffer** gOutputBuffers;
 
 #define BUFFER_SIZE 16384// Number of samples to be stored in the buffer - accounting for 2-channel audio
 int gCachedInputBufferPointers[2] = {0}; // Cached input buffer write pointers.
-int gOutputBufferReadPointers[2] = {0}; // Read pointers for the output buffers
 
 int gHopCounter = 0; 
 int gWindowSize = 8192; // Size of window
@@ -94,25 +93,16 @@ bool setup(BelaContext *context, void *userData)
 // Process the audio. This is handled by an auxiliary thread
 void processAudio(void *arg){
 
-	// Read pointers for the input buffers
-	int pointer[gAudioChannels];
-	
 	// For each channel
 	for(int channel = 0; channel < gAudioChannels; channel++){
 		
-		// Unwrap the buffer
-		pointer[channel] = (gCachedInputBufferPointers[channel] - gWindowSize + BUFFER_SIZE) % BUFFER_SIZE; 
+		// Shift read pointer starting position to gWindowSize samples behind the last input
+		gInputBuffers[channel]->setReadPointer(gCachedInputBufferPointers[channel] - gWindowSize);
 		
 		// Load inputs into timerDomain
 		for(int i = 0; i < gWindowSize; i++){
-			gFFTs[channel]->timeDomainIn[i].r = (ne10_float32_t)gInputBuffers[channel]->returnElement(pointer[channel]) * gHanningWindow[i];
+			gFFTs[channel]->timeDomainIn[i].r = (ne10_float32_t)gInputBuffers[channel]->returnNextElement() * gHanningWindow[i];
 			gFFTs[channel]->timeDomainIn[i].i = 0;
-			
-			// Iterate read pointers
-			pointer[channel]++;
-			if(pointer[channel] >= BUFFER_SIZE){
-				pointer[channel] = 0;
-			}
 		}
 	}
 	
@@ -139,8 +129,9 @@ void processAudio(void *arg){
 		for(int n = 0; n < gWindowSize; n++) {
 			gOutputBuffers[channel]->insertAndAdd(gFFTs[channel]->timeDomainOut[n].r);
 		}
-		// CircularBuffer automatically iterates the write pointer, so we need to pull it back by (gWindowSize-gHopSize) elements 
-		gOutputBuffers[channel]->setWritePointer((gOutputBuffers[channel]->returnWritePointer() - (gWindowSize - gHopSize) + BUFFER_SIZE) % BUFFER_SIZE); 
+		// CircularBuffer automatically iterates the write pointer every time an element is added
+		// So we need to pull it back by (gWindowSize-gHopSize) elements to ensure correct hop size
+		gOutputBuffers[channel]->setWritePointer(gOutputBuffers[channel]->returnWritePointer() - (gWindowSize - gHopSize)); 
 	}
 	
 }
@@ -165,17 +156,12 @@ void render(BelaContext *context, void *userData)
 		
 		for(int channel = 0; channel < context->audioInChannels; channel++){
 			
-			// Read the next values from the output buffers 
-			float out = gOutputBuffers[channel]->returnAndEmptyElement(gOutputBufferReadPointers[channel]);
-			gOutputBufferReadPointers[channel]++;
-			if(gOutputBufferReadPointers[channel] >= BUFFER_SIZE){
-				gOutputBufferReadPointers[channel] = 0;
-			}
+			// Read the next values from the output buffers
+			float out = gOutputBuffers[channel]->returnAndEmptyNextElement();
 			
 			// And write them to the output
 			audioWrite(context, n, channel, out);
 		}
-		
 		
 		gHopCounter++; 
 		// Only process FFT after gHopSize samples
