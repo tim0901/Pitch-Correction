@@ -10,7 +10,7 @@
 
 void generateFrequencySpectrum(FFTContainer* fft, std::string fileName){
 	
-	// Writes the amplitude spectrum to a text file.
+	// Writes the amplitude spectrum to a text file
 	
 	rt_printf("Saving spectrum.\n");
 	
@@ -19,11 +19,11 @@ void generateFrequencySpectrum(FFTContainer* fft, std::string fileName){
 	
 	// Open file
 	ofs.open(fileName);
-	float frequencyIncrement = (float)fft->sampleRate / ((float)fft->size); // The central frequency found in a particular bin. 
+	float frequencyIncrement = (float)fft->sampleRate / ((float)fft->size); // The central frequency found in a particular bin
 	
 	ofs << 0 << " " << sqrt((fft->frequencyDomain[0].r * fft->frequencyDomain[0].r) + (fft->frequencyDomain[0].i * fft->frequencyDomain[0].i)) << "\n"; // DC - must not be doubled
 	
-	for(int i = 1; i < 0.5*fft->size; i++){ // Real spectra are perfectly symmetric - only need half of the elements.
+	for(int i = 1; i < 0.5*fft->size; i++){ // Real spectra are perfectly symmetric - only need half of the elements. Remaining have their amplitudes doubled
 		ofs << frequencyIncrement * (float)i << " " << 2 * sqrt((fft->frequencyDomain[i].r * fft->frequencyDomain[i].r) + (fft->frequencyDomain[i].i * fft->frequencyDomain[i].i)) << "\n";
 	}
 	

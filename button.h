@@ -9,10 +9,11 @@
 #include <Bela.h>
 
 
-// Helper class for buttons, to keep things tidy. Uses a state machine to debounce the input.
+// Helper class for buttons, to keep things tidy
+// Uses a state machine to debounce the input
 class button{
 public:
-	button(BelaContext *context, int pin):pinNumber(pin){ 
+	button(BelaContext *context, int pin):pinNumber(pin){ // Constructor
 		// Set LED pin to an output
 		pinMode(context, 0, pinNumber, INPUT);
 	}
@@ -20,24 +21,24 @@ public:
 		rt_printf("Button deleted\n");
 	}
 	
-	// Update stored information. Should be called once per call to render. Can specify audioFrame if desired. 
+	// Update stored information
+	// Should be called once per call to render. Can specify audioFrame if desired
 	void updateState(BelaContext *context, int audioFrame = 0);
 	
-	// Return the current state of the button. FALSE == pressed.
+	// Return the current state of the button. FALSE == pressed
 	bool returnState(){
 		return buttonState;
 	}
 	
-	// Return the previous state of the button. FALSE == pressed.
+	// Return the previous state of the button. FALSE == pressed
 	bool returnPreviousState(){
 		return previousButtonState;
 	}
 	
 private:
-
-	const int pinNumber;
-	bool buttonState;
-	bool previousButtonState;
+	const int pinNumber; // The Bela pin the button is connected to
+	bool buttonState; // Most recent state of the button
+	bool previousButtonState; // Previous state of the button
 	
 	// State machine states
 	enum {
@@ -47,7 +48,7 @@ private:
 		kStateJustOpen
 	};
 	
-	int debounceState = kStateOpen;
+	int debounceState = kStateOpen; // Current state of the state machine
 	int debounceCounter = 0;
 	int debounceInterval = 882;	// 20 ms
 	

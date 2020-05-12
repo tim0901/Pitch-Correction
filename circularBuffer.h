@@ -13,12 +13,12 @@
 class circularBuffer{
 public:
 	circularBuffer(){} // Default constructor
+	
 	~circularBuffer(){ // Destructor
-		rt_printf("Circular Buffer destructor called.\n");
 		if(buffer){
 			free(buffer);
 		}
-		
+		rt_printf("Circular Buffer deleted.\n");
 	}
 	
 	circularBuffer(int bufSize):bufferSize(bufSize){ // Constructor
@@ -26,7 +26,7 @@ public:
 		bufferWritePointer = 0; 
 	}
 	
-	// Returns the desired element from the array.
+	// Returns the desired element from the array
 	inline float returnElement(int element){
 		if(element > bufferSize){
 			element = (element + bufferSize)%bufferSize;
@@ -34,7 +34,7 @@ public:
 		return buffer[element];
 	}
 	
-	// Returns the desired element from the array and empties the buffer element.
+	// Returns the desired element from the array and empties the buffer element
 	inline float returnAndEmptyElement(int element){
 		if(element > bufferSize){
 			element = (element + bufferSize)%bufferSize;
@@ -44,7 +44,7 @@ public:
 		return temp;
 	}
 	
-	// Manually change the write pointer - used for offsetting in setup. 
+	// Manually change the write pointer - used for offsetting in setup
 	inline void setWritePointer(int element){
 		bufferWritePointer = element;
 	}
@@ -63,6 +63,7 @@ public:
 		}
 	}
 	
+	// Add a sample to whatever exists in a given buffer element
 	inline void insertAndAdd(float entry){
 		buffer[(bufferWritePointer)] += entry;
 		bufferWritePointer++;
