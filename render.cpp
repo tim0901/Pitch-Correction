@@ -31,7 +31,7 @@ circularBuffer** gOutputBuffers;
 int gCachedInputBufferPointers[2] = {0}; // Cached input buffer write pointers.
 
 int gHopCounter = 0; 
-int gWindowSize = 8192; // Size of window
+int gWindowSize = 2048; // Size of window
 int gHopSize = gWindowSize/2; // How far between hops
 
 int gAudioChannels = 0; // Used to store the number of audio channels to be passed to the auxiliary task
@@ -48,6 +48,9 @@ FFTContainer** gFFTs;
 
 // Harmonic product spectrums for finding fundamental frequency
 HPS** gHPSs;
+
+// The fundamental frequency for each channel
+float gFundamentalFrequencies[2] = {0};
 
 // Predeclaration
 void processAudio(void* arg);
@@ -131,13 +134,19 @@ void processAudio(void *arg){
 		// Use harmonic product spectrum to find the fundamental frequency of the incoming sound
 		gHPSs[channel]->importSpectrum(gFFTs[channel]->frequencyDomain);
 		gHPSs[channel]->calculate();
-		float fundamentalFrequency = gHPSs[channel]->estimateFundamentalFrequency();
+		float temp = gHPSs[channel]->estimateFundamentalFrequency();
+		
+		// Only update gFundamentalFrequencies if the output is valid
+		if(temp != 0){
+			gFundamentalFrequencies[channel] = temp;
+			rt_printf("%f\n", gFundamentalFrequencies[channel]); // For monitoring
+		}
 		
 		// Output a .txt file conatining the HPS when the button is pressed (low)
 		// Will overwrite files with the same name
+		// Can cause problems to the audio when used
 		if(!gSpectrumButton->returnState()){
 			gHPSs[0]->exportHPS("HPS.txt");
-			rt_printf("%f\n", fundamentalFrequency);
 		}
 		
 		// Calculate inverse FFT to bring the processed audio back to the time domain

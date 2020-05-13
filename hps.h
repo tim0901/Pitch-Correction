@@ -11,6 +11,8 @@
 
 #include <math.h>
 
+#include "peakDetection.h"
+
 // A harmonic product spectrum used for pitch detection
 
 class HPS{
@@ -22,6 +24,7 @@ public:
 		threeSigma = (float*) malloc (HPSSize* sizeof(float));
 		productSpectrum = (float*) malloc (HPSSize * sizeof(float));
 		frequencyStep = (float)sampleRate / (float)(bufferSize * 2); // Calculate the frequency step for each 
+		detectedPeaks = (int*)malloc(bufferSize * sizeof(int));
 	}
 	
 	~HPS(){ // Destructor
@@ -29,6 +32,7 @@ public:
 		free(twoSigma);
 		free(threeSigma);
 		free(productSpectrum);
+		free(detectedPeaks);
 		rt_printf("HPS deleted.\n");
 	}
 	
@@ -61,6 +65,7 @@ private:
 	const int sampleRate;
 	const int HPSSize;
 	float frequencyStep;
+	int* detectedPeaks;
 };
 
 // Calculate the HPS
@@ -74,16 +79,21 @@ void HPS::calculate(){
 
 // Find the peak in the product spectrum
 int HPS::returnPeakLocation(){
+	
 	int peakLocation = 0;
-	int peakMagnitude = 0; 
+	int peakAmplitude = 0; 
 	
 	// Ignore values below 50Hz as they're noisy
 	int lowerLimit = ceil(50.0 / frequencyStep);
 	
-	for(int i = lowerLimit; i < HPSSize; i++){// Find largest magnitude in the array
-		if(productSpectrum[i] > peakMagnitude){
-			peakLocation = i;
-			peakMagnitude = productSpectrum[i];
+	detectPeaks(HPSSize, productSpectrum, detectedPeaks);
+	
+	for(int i = lowerLimit; i < HPSSize; i++){
+		if(detectedPeaks[i] == 1){
+			if(amplitudeSpectrum[i] > peakAmplitude){
+				peakLocation = i;
+				peakAmplitude = amplitudeSpectrum[i];
+			}
 		}
 	}
 	
@@ -105,6 +115,12 @@ float HPS::estimateFundamentalFrequency(){
 	float relativePeakLocation = 0.5*(alpha - gamma)/(alpha - 2*beta + gamma); // Estimate where the peak is within the bins
 	
 	float frequencyEstimation = (relativePeakLocation + peakBin) * frequencyStep; // Use this estmated location to calculate the frequency
+	
+	// We can't make accurate estimations below 50Hz so these are ignored
+	// This also helpfully filters out lots of noise
+	if(frequencyEstimation < 50){
+		return 0;
+	}
 	
 	return frequencyEstimation;
 }
