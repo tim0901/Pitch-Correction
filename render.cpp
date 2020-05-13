@@ -20,12 +20,12 @@
 #include "spectrum.h"
 #include "button.h"
 #include "hps.h"
+#include "compareNotes.h"
 
 button *gSpectrumButton; // The button used to export a spectrum. 
 
 circularBuffer** gInputBuffers; // The circular buffers used for storing input data
 circularBuffer** gOutputBuffers;
-
 
 #define BUFFER_SIZE 16384// Number of samples to be stored in the buffer - accounting for 2-channel audio
 int gCachedInputBufferPointers[2] = {0}; // Cached input buffer write pointers.
@@ -51,6 +51,14 @@ HPS** gHPSs;
 
 // The fundamental frequency for each channel
 float gFundamentalFrequencies[2] = {0};
+
+enum{ // Which scale to use for note comparisons
+	PENTATONIC = 0,
+	C_MAJOR = 1,
+	C_MINOR = 2
+};
+
+int gScale = PENTATONIC;
 
 // Predeclaration
 void processAudio(void* arg);
@@ -128,7 +136,7 @@ void processAudio(void *arg){
 		// Will overwrite files with the same name
 		// Can cause problems to the audio when used
 		if(!gSpectrumButton->returnState()){
-			generateFrequencySpectrum(gFFTs[0], "spectrum.txt");
+			generateFrequencySpectrum(gFFTs[0], "frequency_spectrum.txt");
 		}
 		
 		// Use harmonic product spectrum to find the fundamental frequency of the incoming sound
@@ -139,7 +147,13 @@ void processAudio(void *arg){
 		// Only update gFundamentalFrequencies if the output is valid
 		if(temp != 0){
 			gFundamentalFrequencies[channel] = temp;
-			rt_printf("%f\n", gFundamentalFrequencies[channel]); // For monitoring
+			//rt_printf("%f\n", gFundamentalFrequencies[channel]); // For monitoring
+		}
+		
+		// Find the note that's closest to the fundamental frequency
+		float desiredNote = compareNotes(PENTATONIC, gFundamentalFrequencies[channel]);
+		if(temp != 0){
+			rt_printf("%f %f\n", gFundamentalFrequencies[channel], desiredNote); // For monitoring
 		}
 		
 		// Output a .txt file conatining the HPS when the button is pressed (low)
