@@ -25,6 +25,7 @@
 
 button *gSpectrumButton; // The button used to export a spectrum. 
 button *gDisableButton;
+button *gScaleButton;
 
 circularBuffer** gInputBuffers; // The circular buffers used for storing input data
 circularBuffer** gOutputBuffers;
@@ -66,6 +67,8 @@ enum{ // Available scales for note comparisons
 
 int gScale = PENTATONIC; // Which scale should be used?
 
+int gScaleTimer = 0; // How long has it been since the scale has been changed?
+
 // Predeclaration
 void processAudio(void* arg);
 
@@ -80,6 +83,7 @@ bool setup(BelaContext *context, void *userData)
 	
 	gSpectrumButton = new button(context, 1); // Init buttons
 	gDisableButton = new button(context, 2);
+	gScaleButton = new button(context, 3);
 	
 	gAudioChannels = context->audioInChannels; // Required to pass value to secondary thread
 	
@@ -179,7 +183,7 @@ void processAudio(void *arg){
 			// Find the note that's closest to the fundamental frequency
 			float desiredNote = compareNotes(gScale, gFundamentalFrequencies[channel]);
 			if(fundamentalFrequency != 0){
-				rt_printf("%f %f\n", gFundamentalFrequencies[channel], desiredNote); // For monitoring
+				rt_printf("Fundamental frequency:%f Desired note:%f\n", gFundamentalFrequencies[channel], desiredNote); // For monitoring
 			}
 			
 			// Output a .txt file conatining the HPS when the button is pressed (low)
@@ -222,6 +226,27 @@ void render(BelaContext *context, void *userData)
 	// Update button states
 	gSpectrumButton->updateState(context);
 	gDisableButton->updateState(context);
+	gScaleButton->updateState(context);
+	
+	// Update scale used for pitch correction if scale button is pressed
+	if(gScaleButton->isPressed() && gScaleTimer > 2000){
+		if(gScale == C_MINOR){
+			gScale = PENTATONIC;
+			rt_printf("PENTATONIC\n");
+		}
+		else if(gScale == C_MAJOR){
+			gScale = C_MINOR;
+			rt_printf("C_MINOR\n");
+		}
+		else if(gScale == PENTATONIC){
+			gScale = C_MAJOR;
+			rt_printf("C_MAJOR\n");
+		}
+		gScaleTimer = 0;
+	}
+	if(gScaleTimer < 2001){
+		gScaleTimer++;
+	}
 	
 	// For each audio frame
 	for(unsigned int n = 0; n < context->audioFrames; n++){

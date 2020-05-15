@@ -37,7 +37,7 @@ void detectPeaks(int inputSize, float* inputData, int* outputData){
 	int lag = 5; 
 	
 	// Theshold for signal in standard deviations from the mean.
-	float signalThreshold = 20000;
+	float signalThreshold = 20;
 	
 	// Between 0 and 1
 	float influence = 0;

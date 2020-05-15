@@ -49,8 +49,6 @@ void phaseVocoder::shiftFrequency(ne10_fft_cpx_float32_t* frequencySpectrum, int
 		return;
 	}
 	
-	// Quadratic interpolation
-	
 	// Find the frequency shift that must be performed
 	// The number of bins we need to shift by
 	float frequencyShift = (desiredFrequency - currentFrequency) * inverseFrequencyStep; // Amount that the frequency needs to be shifted by
