@@ -28,9 +28,15 @@ public:
 	// Should be called once per call to render. Can specify audioFrame if desired
 	void updateState(BelaContext *context, int audioFrame = 0);
 	
-	// Return the current state of the button. FALSE == pressed
-	bool returnState(){
+	// Returns the raw state of the button. FALSE == pressed
+	bool returnRawState(){
 		return buttonState;
+	}
+	
+	// Is the button pressed? Returns true if button is pressed 
+	// This is the opposite of the raw state, but is more sensical to work with as TRUE == pressed
+	bool isPressed(){
+		return !buttonState;
 	}
 	
 	// Return the previous state of the button. FALSE == pressed

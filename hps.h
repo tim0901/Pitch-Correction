@@ -18,12 +18,12 @@
 class HPS{
 public:
 	
-	HPS(int size, int sr):bufferSize(size * 0.5), sampleRate(sr), HPSSize(floor(bufferSize/6)){ // Constructor, to be called in setup()
+	HPS(int size, int sr):bufferSize(size * 0.5), sampleRate(sr), HPSSize(floor(size/6)){ // Constructor, to be called in setup()
 		amplitudeSpectrum = (float*)malloc(bufferSize * sizeof(float));
-		twoSigma = (float*) malloc (0.5 * bufferSize * sizeof(float));
-		threeSigma = (float*) malloc (HPSSize* sizeof(float));
+		twoSigma = (float*) malloc (bufferSize * sizeof(float));
+		threeSigma = (float*) malloc (HPSSize * sizeof(float));
 		productSpectrum = (float*) malloc (HPSSize * sizeof(float));
-		frequencyStep = (float)sampleRate / (float)(bufferSize * 2); // Calculate the frequency step for each 
+		frequencyStep = (float)sampleRate / (float)(size); // Calculate the frequency step for each 
 		detectedPeaks = (int*)malloc(bufferSize * sizeof(int));
 	}
 	
@@ -40,7 +40,7 @@ public:
 	inline void importSpectrum(ne10_fft_cpx_float32_t* spectrum){
 		
 		// We only care about the first half as it is symmetric for real signals
-		for(int i = 0; i < 0.5*bufferSize; i++){
+		for(int i = 0; i < bufferSize; i++){
 			amplitudeSpectrum[i] = sqrt((spectrum[i].r * spectrum[i].r) + (spectrum[i].i * spectrum[i].i)); // Square the two components, then store the square root of their sum as the amplitude
 		}
 	}
@@ -54,7 +54,7 @@ public:
 	void exportHPS(std::string fileName, bool includeIntermediaries = false);
 	
 	// Return an estimate of the exact frequency of the incoming signal
-	float estimateFundamentalFrequency();
+	float estimateFundamentalFrequency(int peakBin = 0);
 	
 private:
 	float* amplitudeSpectrum;
@@ -101,9 +101,10 @@ int HPS::returnPeakLocation(){
 }
 
 // Return an estimate of the exact frequency of the incoming signal
-float HPS::estimateFundamentalFrequency(){
-	
-	int peakBin = this->returnPeakLocation();
+float HPS::estimateFundamentalFrequency(int peakBin){
+	if(peakBin == 0){
+		peakBin = this->returnPeakLocation();
+	}
 	
 	// Quadratic interpolation
 	

@@ -21,8 +21,10 @@
 #include "button.h"
 #include "hps.h"
 #include "compareNotes.h"
+#include "phaseVocoder.h"
 
 button *gSpectrumButton; // The button used to export a spectrum. 
+button *gDisableButton;
 
 circularBuffer** gInputBuffers; // The circular buffers used for storing input data
 circularBuffer** gOutputBuffers;
@@ -31,14 +33,15 @@ circularBuffer** gOutputBuffers;
 int gCachedInputBufferPointers[2] = {0}; // Cached input buffer write pointers.
 
 int gHopCounter = 0; 
-int gWindowSize = 2048; // Size of window
-int gHopSize = gWindowSize/2; // How far between hops
+int gWindowSize = 4096; // Size of window
+int gHopSize = gWindowSize/4; // How far between hops
 
 int gAudioChannels = 0; // Used to store the number of audio channels to be passed to the auxiliary task
 
 float* gHanningWindow; // The Hanning window
 
-int gSpectrumTimer = 0; // For spectrum output
+// Temporary storage for storing the unprocessed frequency domain when exporting a spectrum
+ne10_fft_cpx_float32_t* oldFrequencyDomain;
 
 // Thread for FFT processing
 AuxiliaryTask gFFTTask;
@@ -52,13 +55,16 @@ HPS** gHPSs;
 // The fundamental frequency for each channel
 float gFundamentalFrequencies[2] = {0};
 
-enum{ // Which scale to use for note comparisons
+// The phase vocoder used to shift the frequency peak
+phaseVocoder** gPhaseVocoders;
+
+enum{ // Available scales for note comparisons
 	PENTATONIC = 0,
 	C_MAJOR = 1,
 	C_MINOR = 2
 };
 
-int gScale = PENTATONIC;
+int gScale = PENTATONIC; // Which scale should be used?
 
 // Predeclaration
 void processAudio(void* arg);
@@ -72,7 +78,8 @@ bool setup(BelaContext *context, void *userData)
 		return false;
 	}
 	
-	gSpectrumButton = new button(context, 1); // Init button
+	gSpectrumButton = new button(context, 1); // Init buttons
+	gDisableButton = new button(context, 2);
 	
 	gAudioChannels = context->audioInChannels; // Required to pass value to secondary thread
 	
@@ -86,6 +93,9 @@ bool setup(BelaContext *context, void *userData)
 	// Harmonic product spectra for finding the fundamental frequency (pitch) of the incoming signal, one per channel
 	gHPSs = (HPS**)malloc(context->audioInChannels * sizeof(HPS*));
 	
+	// Phase vocoders for shifting the frequency peaks
+	gPhaseVocoders = (phaseVocoder**)malloc(context->audioInChannels * sizeof(phaseVocoder*));
+	
 	// Allocate memory per audio channel
 	for(int channel = 0; channel < context->audioInChannels; channel++){
 		gInputBuffers[channel] = new circularBuffer(BUFFER_SIZE);
@@ -93,7 +103,12 @@ bool setup(BelaContext *context, void *userData)
 		gOutputBuffers[channel]->setWritePointer(gHopSize);
 		gFFTs[channel] = new FFTContainer(gWindowSize, context->audioSampleRate);
 		gHPSs[channel] = new HPS(gWindowSize, context->audioSampleRate);
+		gPhaseVocoders[channel] = new phaseVocoder(gWindowSize, gHopSize, context->audioSampleRate);
 	}
+	
+	// Temporary storage for storing the unprocessed frequency domain when exporting a spectrum
+	// Otherwise it is overwritten by the phase vocoder before it finishes writing to the file
+	oldFrequencyDomain = (ne10_fft_cpx_float32_t*) malloc (gWindowSize * sizeof(ne10_fft_cpx_float32_t));
 	
 	// Prepopulate Hanning window array for efficiency
 	gHanningWindow = (float*) malloc (gWindowSize * sizeof(float));
@@ -130,37 +145,59 @@ void processAudio(void *arg){
 		// Calculate FFT
 		ne10_fft_c2c_1d_float32_neon(gFFTs[channel]->frequencyDomain, gFFTs[channel]->timeDomainIn, gFFTs[channel]->cfg, 0);
 		
+				
 		// ---- Frequency domain processing ---- //
 		
-		// Output a .txt frequency spectrum when the button is pressed (low) 
-		// Will overwrite files with the same name
-		// Can cause problems to the audio when used
-		if(!gSpectrumButton->returnState()){
-			generateFrequencySpectrum(gFFTs[0], "frequency_spectrum.txt");
-		}
 		
-		// Use harmonic product spectrum to find the fundamental frequency of the incoming sound
-		gHPSs[channel]->importSpectrum(gFFTs[channel]->frequencyDomain);
-		gHPSs[channel]->calculate();
-		float temp = gHPSs[channel]->estimateFundamentalFrequency();
-		
-		// Only update gFundamentalFrequencies if the output is valid
-		if(temp != 0){
-			gFundamentalFrequencies[channel] = temp;
-			//rt_printf("%f\n", gFundamentalFrequencies[channel]); // For monitoring
-		}
-		
-		// Find the note that's closest to the fundamental frequency
-		float desiredNote = compareNotes(PENTATONIC, gFundamentalFrequencies[channel]);
-		if(temp != 0){
-			rt_printf("%f %f\n", gFundamentalFrequencies[channel], desiredNote); // For monitoring
-		}
-		
-		// Output a .txt file conatining the HPS when the button is pressed (low)
-		// Will overwrite files with the same name
-		// Can cause problems to the audio when used
-		if(!gSpectrumButton->returnState()){
-			gHPSs[0]->exportHPS("HPS.txt");
+		if(gDisableButton->isPressed() == false){ // Disable processing if button 2 is pressed
+			
+			// Output a .txt frequency spectrum when the button is pressed (low) 
+			// Will overwrite files with the same name
+			// Can cause problems to the audio when used
+			if(gSpectrumButton->isPressed() && channel == 0){
+				
+				// Store frequencyDomain so that it isn't overwritten before output is complete
+				for(int i = 0; i < gWindowSize; i++){
+					oldFrequencyDomain[i].r = gFFTs[0]->frequencyDomain[i].r;
+					oldFrequencyDomain[i].i = gFFTs[0]->frequencyDomain[i].i;
+				}
+				generateFrequencySpectrum(oldFrequencyDomain, gFFTs[0]->sampleRate, gFFTs[0]->size, "frequency_spectrumOld.txt");
+			}
+			
+			// Use harmonic product spectrum to find the fundamental frequency of the incoming sound
+			gHPSs[channel]->importSpectrum(gFFTs[channel]->frequencyDomain);
+			gHPSs[channel]->calculate();
+			int peakBin = gHPSs[channel]->returnPeakLocation();
+			float fundamentalFrequency = gHPSs[channel]->estimateFundamentalFrequency(peakBin);
+			
+			// Only update gFundamentalFrequencies if the output is valid
+			if(fundamentalFrequency != 0){
+				gFundamentalFrequencies[channel] = fundamentalFrequency;
+				//rt_printf("%f\n", gFundamentalFrequencies[channel]); // For monitoring
+			}
+			
+			// Find the note that's closest to the fundamental frequency
+			float desiredNote = compareNotes(gScale, gFundamentalFrequencies[channel]);
+			if(fundamentalFrequency != 0){
+				rt_printf("%f %f\n", gFundamentalFrequencies[channel], desiredNote); // For monitoring
+			}
+			
+			// Output a .txt file conatining the HPS when the button is pressed (low)
+			// Will overwrite files with the same name
+			// Can cause problems to the audio when used
+			if(gSpectrumButton->isPressed() && channel == 0){
+				gHPSs[0]->exportHPS("HPSBefore.txt");
+			}
+			
+			// Shift the peak towards the desired note
+			gPhaseVocoders[channel]->shiftFrequency(gFFTs[channel]->frequencyDomain, peakBin, gFundamentalFrequencies[channel], desiredNote);
+			
+			// Output a .txt frequency spectrum when the button is pressed (low) 
+			// Will overwrite files with the same name
+			// Can cause problems to the audio when used
+			if(gSpectrumButton->isPressed()  && channel == 0){
+				generateFrequencySpectrum(gFFTs[0]->frequencyDomain, gFFTs[0]->sampleRate, gFFTs[0]->size, "frequency_spectrum.txt");
+			}
 		}
 		
 		// Calculate inverse FFT to bring the processed audio back to the time domain
@@ -182,8 +219,9 @@ void processAudio(void *arg){
 
 void render(BelaContext *context, void *userData)
 {	
-	// Update button state
+	// Update button states
 	gSpectrumButton->updateState(context);
+	gDisableButton->updateState(context);
 	
 	// For each audio frame
 	for(unsigned int n = 0; n < context->audioFrames; n++){
@@ -227,16 +265,20 @@ void render(BelaContext *context, void *userData)
 void cleanup(BelaContext *context, void *userData)
 {
 	for(int channel = 0; channel < context->audioInChannels; channel++){
+		delete gPhaseVocoders[channel];
 		delete gHPSs[channel];
 		delete gFFTs[channel];
 		delete gInputBuffers[channel];
 		delete gOutputBuffers[channel];
 	}
+	free(gPhaseVocoders);
 	free(gHPSs);
 	free(gFFTs);
 	free(gInputBuffers);
 	free(gOutputBuffers);
 	free(gHanningWindow);
+	free(oldFrequencyDomain);
 	
+	delete gDisableButton;
 	delete gSpectrumButton;
 }

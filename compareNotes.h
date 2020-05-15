@@ -1,8 +1,15 @@
 /***** compareNotes.h *****/
-
+/*
+ * Written for ECS7012U Music and 
+ * Audio Programming, for the Bela platform.
+ *
+ * Alex Richardson 2020
+ */
+ 
 #ifndef COMPARENOTES_H
 #define COMPARENOTES_H
 
+// Predefined scales of note frequencies used for comparisons
 float scales[3][87] = {
 		{55, 58.27, 61.74, 65.41, 69.3, 73.42, 77.78,
 			 82.41, 87.31, 92.5, 98, 103.83, 110, 116.54, 123.47,
